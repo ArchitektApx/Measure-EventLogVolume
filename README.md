@@ -48,11 +48,11 @@ Newest Record:  05/14/2025 16:43:08
 Logs per Hour:  4.95
 Logs per Day:   118.78
 Logs per Week:  831.47
-Logs per Month: 514.72
-MB per Hour:    0
-MB per Day:     0.04
-MB per Week:    0.29
-MB per Month:   0.18
+Logs per Month: 3600.05
+MB per Hour:    0.01
+MB per Day:     0.24
+MB per Week:    1.68
+MB per Month:   7.27
 
 🔐 Security Log
 Oldest Record:  05/06/2025 07:05:22
@@ -64,7 +64,7 @@ Logs per Month: 116309.51
 MB per Hour:    0.74
 MB per Day:     17.84
 MB per Week:    124.9
-MB per Month:   77.32
+MB per Month:   536.32
 ```
 
 ### Measure Specific Log and Keep History
@@ -85,11 +85,11 @@ Historical Records:  5
 Logs per Hour:  10.50
 Logs per Day:   252.00
 Logs per Week:  1764.00
-Logs per Month: 10920.00
+Logs per Month: 7638.12
 MB per Hour:    0.02
 MB per Day:     0.48
 MB per Week:    3.36
-MB per Month:   20.80
+MB per Month:   14.54
 ```
 
 ### Use History with Custom Path and Filename
@@ -116,13 +116,13 @@ Use the `-WriteAveragesToOutput` switch to get the calculated averages as a JSON
         "NewestRecord": "2025-05-14T16:43:08",
         "HistoricalRecords": 1,
         "AverageLogsPerHour": 4.95,
-        "AverageMBPerHour": 0.00,
+        "AverageMBPerHour": 0.01,
         "AverageLogsPerDay": 118.78,
-        "AverageMBPerDay": 0.04,
+        "AverageMBPerDay": 0.24,
         "AverageLogsPerWeek": 831.47,
-        "AverageMBPerWeek": 0.29,
-        "AverageLogsPerMonth": 514.72,
-        "AverageMBPerMonth": 0.18
+        "AverageMBPerWeek": 1.68,
+        "AverageLogsPerMonth": 3600.05,
+        "AverageMBPerMonth": 7.27
     }
 }
 ```
