@@ -212,8 +212,8 @@ function Get-HistoricalAverage {
     # estimate the weekly and monthly averages
     $AvgLogsPerWeek     = $AvgLogsPerDay * $DAYS_PER_WEEK
     $AvgLogMBPerWeek    = $AvgLogMBPerDay * $DAYS_PER_WEEK
-    $AvgLogsPerMonth    = $AvgLogsPerDay * $WEEKS_PER_MONTH
-    $AvgLogMBPerMonth   = $AvgLogMBPerDay * $WEEKS_PER_MONTH
+    $AvgLogsPerMonth    = $AvgLogsPerWeek * $WEEKS_PER_MONTH
+    $AvgLogMBPerMonth   = $AvgLogMBPerWeek * $WEEKS_PER_MONTH
 
     # get the oldest and newest record in the history
     $OldestRecord = $StatRecordHistory | Sort-Object -Property StartTime | Select-Object -First 1 -ExpandProperty StartTime
