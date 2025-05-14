@@ -159,6 +159,26 @@ function Get-LogStats {
     }
 }
 
+function ConvertFrom-PSCustomObjectToHashtable {
+<#
+.SYNOPSIS
+    Helper function to convert a PSCustomObject to a Hashtable.
+    Since ConvertFrom-Json has no -AsHashtable parameter in PowerShell 5.1,
+#>
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [PSCustomObject]$InputObject
+    )
+
+    $Output = @{}
+    foreach ($Property in $InputObject.PSObject.Properties) {
+        $Output[$Property.Name] = $Property.Value
+    }
+
+    return $Output
+}
+
 function Get-StatRecordHistory {
     [OutputType([Hashtable])]
     [CmdletBinding()]
@@ -168,9 +188,9 @@ function Get-StatRecordHistory {
 
     if (Test-Path $TEMP_FILE_PATH) {
         $Raw        = Get-Content $TEMP_FILE_PATH -Raw
-        $LogStatsHt = ConvertFrom-Json $Raw -Depth 10 -AsHashtable | Select-Object -ExpandProperty LogStats
-
-        if ($LogStatsHt) { $Output = [hashtable] $LogStatsHt }
+        $JsonObject = ConvertFrom-Json $Raw
+        $LogStatsHt = ConvertFrom-PSCustomObjectToHashtable $JsonObject.LogStats
+        $Output = [hashtable] $LogStatsHt
     }
 
     return $Output
