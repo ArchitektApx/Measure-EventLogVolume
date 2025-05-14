@@ -8,26 +8,26 @@ The script analyzes specified event logs, calculates the rate of log generation 
 
 ## Prerequisites
 
-*   **PowerShell Version**: Requires PowerShell 5.1 or higher.
-*   **Administrator Privileges**: The script must be run as an Administrator to access event log data.
+* **PowerShell Version**: Requires PowerShell 5.1 or higher.
+* **Administrator Privileges**: The script must be run as an Administrator to access event log data.
 
 ## Parameters
 
-*   `LogName` (string[]):
-    *   Specifies the name(s) of the Event Log(s) to measure.
-    *   Default: `@('Application', 'Security')`
-*   `KeepHistory` (switch):
-    *   If set, the script saves results to a temporary file and re-uses this data on subsequent runs. This calculates a running average, which is useful for logs with high turnover like Security Logs on Domain Controllers in large environments.
-*   `HistoryFilePath` (string):
-    *   The path to the directory where the historical data file will be stored.
-    *   Default: `[System.IO.Path]::GetTempPath()` (System's temporary folder)
-*   `TempFileName` (string):
-    *   The name of the JSON file that will store the historical data.
-    *   Default: `'Measure-EventLogVolume_HistoryData.json'`
-*   `PurgeHistory` (switch):
-    *   If set, all previously stored historical data will be deleted before the script runs.
-*   `WriteAveragesToOutput` (switch):
-    *   If set, the script outputs the calculated averages as a JSON string to the output stream.
+* `LogName` (string[]):
+  * Specifies the name(s) of the Event Log(s) to measure.
+  * Default: `@('Application', 'Security')`
+* `KeepHistory` (switch):
+  * If set, the script saves results to a temporary file and re-uses this data on subsequent runs. This calculates a running average, which is useful for logs with high turnover like Security Logs on Domain Controllers in large environments.
+* `HistoryFilePath` (string):
+  * The path to the directory where the historical data file will be stored.
+  * Default: `[System.IO.Path]::GetTempPath()` (System's temporary folder)
+* `TempFileName` (string):
+  * The name of the JSON file that will store the historical data.
+  * Default: `'Measure-EventLogVolume_HistoryData.json'`
+* `PurgeHistory` (switch):
+  * If set, all previously stored historical data will be deleted before the script runs.
+* `WriteAveragesToOutput` (switch):
+  * If set, the script outputs the calculated averages as a JSON string to the output stream.
 
 ## Usage Examples
 
@@ -132,4 +132,5 @@ Use the `-WriteAveragesToOutput` switch to get the calculated averages as a JSON
 ```powershell
 .\Measure-EventLogVolume.ps1 -PurgeHistory
 ```
+
 This will delete the history file and then run the measurements (for default logs, unless others are specified).
