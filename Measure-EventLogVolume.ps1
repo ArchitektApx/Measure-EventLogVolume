@@ -32,6 +32,10 @@
     [switch]
     If set, all historical data will be deleted.
 
+.PARAMETER WriteAveragesToOutput
+    [switch]
+    If set, the averages will be written to the output instead of the console.
+
 .EXAMPLE
     > .\Measure-EventLogVolume.ps1
     === Average Log Volume on MyServer ===
@@ -95,6 +99,11 @@
 
 .EXAMPLE
     > .\Measure-EventLogVolume.ps1 -KeepHistory -HistoryFilePath 'C:\Temp' -TempFileName 'Measure-EventLogVolume_HistoryData.json'
+
+.EXAMPLE
+    Write the averages to the output stream (as JSON) so other programs can use it
+    > .\Measure-EventLogVolume.ps1 -WriteAveragesToOutput
+
 #>
 
 [CmdletBinding()]
@@ -108,7 +117,9 @@ param (
     [Parameter(Mandatory = $false)]
     [string]$TempFileName = 'Measure-EventLogVolume_HistoryData.json',
     [Parameter(Mandatory = $false)]
-    [switch]$PurgeHistory
+    [switch]$PurgeHistory,
+    [Parameter(Mandatory = $false)]
+    [switch]$WriteAveragesToOutput
 )
 
 #region CONSTANTS
@@ -399,6 +410,11 @@ if ($KeepHistory) {
     $StatsOutput | ConvertTo-Json -Depth 10 | Set-Content -Path $TEMP_FILE_PATH -Force
 }
 
-$StatsOutput.Averages | Write-ConsoleOutput -LogName $ValidLogNames
+if ($WriteAveragesToOutput) {
+    Write-Output ($StatsOutput.Averages | ConvertTo-Json -Depth 10)
+}
+else {
+    $StatsOutput.Averages | Write-ConsoleOutput -LogName $ValidLogNames
+}
 
 #endregion

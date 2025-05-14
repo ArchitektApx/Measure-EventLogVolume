@@ -26,6 +26,8 @@ The script analyzes specified event logs, calculates the rate of log generation 
     *   Default: `'Measure-EventLogVolume_HistoryData.json'`
 *   `PurgeHistory` (switch):
     *   If set, all previously stored historical data will be deleted before the script runs.
+*   `WriteAveragesToOutput` (switch):
+    *   If set, the script outputs the calculated averages as a JSON string to the output stream.
 
 ## Usage Examples
 
@@ -94,6 +96,35 @@ MB per Month:   20.80
 
 ```powershell
 .\Measure-EventLogVolume.ps1 -KeepHistory -HistoryFilePath 'C:\Temp\LogAnalysis' -TempFileName 'MyEventLogHistory.json'
+```
+
+### Write Averages to Output Stream (JSON)
+
+Use the `-WriteAveragesToOutput` switch to get the calculated averages as a JSON string on the output stream. This is useful for piping the results to other cmdlets or for programmatic consumption.
+
+```powershell
+.\Measure-EventLogVolume.ps1 -LogName 'Application' -WriteAveragesToOutput
+```
+
+**Example Output (JSON to output stream):**
+
+```json
+{
+    "Application": {
+        "LogName": "Application",
+        "OldestRecord": "2022-07-19T09:58:14",
+        "NewestRecord": "2025-05-14T16:43:08",
+        "HistoricalRecords": 1,
+        "AverageLogsPerHour": 4.95,
+        "AverageMBPerHour": 0.00,
+        "AverageLogsPerDay": 118.78,
+        "AverageMBPerDay": 0.04,
+        "AverageLogsPerWeek": 831.47,
+        "AverageMBPerWeek": 0.29,
+        "AverageLogsPerMonth": 514.72,
+        "AverageMBPerMonth": 0.18
+    }
+}
 ```
 
 ### Purge Existing History
