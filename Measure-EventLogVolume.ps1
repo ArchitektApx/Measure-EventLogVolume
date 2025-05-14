@@ -239,14 +239,11 @@ function Get-HistoricalAverage {
     $AvgLogMBPerHour    = $StatRecordHistory | Measure-Average -Property AverageMBPerHour
     $AvgLogsPerDay      = $StatRecordHistory | Measure-Average -Property AverageLogsPerDay
     $AvgLogMBPerDay     = $StatRecordHistory | Measure-Average -Property AverageMBPerDay
-
-    # estimate the weekly and monthly averages
     $AvgLogsPerWeek     = $AvgLogsPerDay * $DAYS_PER_WEEK
     $AvgLogMBPerWeek    = $AvgLogMBPerDay * $DAYS_PER_WEEK
     $AvgLogsPerMonth    = $AvgLogsPerWeek * $WEEKS_PER_MONTH
     $AvgLogMBPerMonth   = $AvgLogMBPerWeek * $WEEKS_PER_MONTH
 
-    # get the oldest and newest record in the history
     $OldestRecord = $StatRecordHistory | Sort-Object -Property StartTime | Select-Object -First 1 -ExpandProperty StartTime
     $NewestRecord = $StatRecordHistory | Sort-Object -Property EndTime -Descending | Select-Object -First 1 -ExpandProperty EndTime
 
@@ -313,7 +310,6 @@ function Write-ConsoleOutput {
     [void] $StringBuilder.AppendLine('')
 
     foreach ($LogRecord in $HistoryAverages.GetEnumerator()) {
-        # only print the logs that are requested on this run
         if ($LogRecord.Key -in $LogName) {
             # if the EmojiMap is empty trim will remove the space at the beginning of the string
             $Emoji = $EmojiMap["$($LogRecord.Key)"]
@@ -398,8 +394,6 @@ $StatsOutput = [PSCustomObject]@{
 # Calculate averages for the valid log names processed in this run.
 foreach ($Name in $ValidLogNames) { 
     if ($CurrentStats.ContainsKey($Name) -and $CurrentStats[$Name].Count -gt 0) {
-        # Ensure the key exists and there's data. 
-        # Get-HistoricalAverage should ideally be resilient to records with 'Remark' if they have 0 rates.
         $StatsOutput.Averages[$Name] = Get-HistoricalAverage -StatRecordHistory $CurrentStats[$Name] -LogName $Name
     } else {
         Write-Warning "No data available in CurrentStats for log '$Name' to calculate averages. This might be due to earlier retrieval issues."
