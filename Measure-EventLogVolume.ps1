@@ -10,14 +10,6 @@
     The name(s) of the Event Log(s) to measure.
     Default is 'Application' and 'Security'.
 
-.PARAMETER KeepHistory
-    [switch]
-    For machines with extremly high log volumes where the event log is rolling over,
-    and only a limited time window is available, this flag can set to save
-    results to a temp file and re-use this data on subsequent runs to
-    improve the accuracy of the results by calculating a running average over 
-    all known data.
-
 .PARAMETER HistoryFilePath
     [string]
     The path to the file that will store the historical data.
@@ -27,6 +19,13 @@
     [string]
     The name of the file that will store the historical data.
     Default is 'Measure-EventLogVolume_HistoryData.json'.
+
+.PARAMETER KeepHistory
+    [switch]
+    For machines with high log volumes where the event log is rolling over often
+    (e.g. only a limited time window is available), this flag indicates that the results
+    should be saved to a temp file and re-used on subsequent runs to improve the accuracy
+    of the results by calculating a running average over all known data.
 
 .PARAMETER PurgeHistory
     [switch]
@@ -95,6 +94,9 @@
     MB per Month:   77.32
 
 .EXAMPLE
+    > .\Measure-EventLogVolume.ps1 -LogName 'Microsoft-Windows-PowerShell/Operational'
+
+.EXAMPLE
     > .\Measure-EventLogVolume.ps1 -LogName 'System' -KeepHistory
 
 .EXAMPLE
@@ -104,22 +106,36 @@
     Write the averages to the output stream (as JSON) so other programs can use it
     > .\Measure-EventLogVolume.ps1 -WriteAveragesToOutput
 
+.LINK
+    https://github.com/ArchitektApx/Measure-EventLogVolume
+
+.NOTES
+    Author:  ArchitektApx <architektapx@gehinors.ch>
+    License: MIT
 #>
 
 [CmdletBinding()]
 param (
     [Parameter(Mandatory = $false)]
-    [string[]]$LogName = @('Application', 'Security'),
+    [ValidateNotNullOrEmpty()]
+    [string[]] $LogName         = @('Application', 'Security'),
+
     [Parameter(Mandatory = $false)]
-    [switch]$KeepHistory,
+    [ValidateScript({ Test-Path $_ })]
+    [string ]$HistoryFilePath   = [system.io.path]::GetTempPath(),
+    
     [Parameter(Mandatory = $false)]
-    [string]$HistoryFilePath = [system.io.path]::GetTempPath(),
+    [ValidateScript({ $_ -match '\.json$' })]
+    [string] $TempFileName      = 'Measure-EventLogVolume_HistoryData.json',
+
     [Parameter(Mandatory = $false)]
-    [string]$TempFileName = 'Measure-EventLogVolume_HistoryData.json',
+    [switch] $KeepHistory,
+
     [Parameter(Mandatory = $false)]
-    [switch]$PurgeHistory,
+    [switch] $PurgeHistory,
+    
     [Parameter(Mandatory = $false)]
-    [switch]$WriteAveragesToOutput
+    [switch] $WriteAveragesToOutput
 )
 
 #region CONSTANTS
@@ -137,10 +153,11 @@ function Get-LogStats {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
-        [string]$LogName
+        [ValidateNotNullOrEmpty()]
+        [string] $LogName
     )
 
-    $LogInfo = Get-WinEvent -ListLog $LogName -ErrorAction SilentlyContinue
+    $LogInfo        = Get-WinEvent -ListLog $LogName -ErrorAction SilentlyContinue
     $LogSizeMBValue = if ($LogInfo.FileSize) { $LogInfo.FileSize / 1MB } else { 0 }
 
     $ParamSplat = @{
@@ -173,13 +190,14 @@ function Get-LogStats {
 function ConvertFrom-PSCustomObjectToHashtable {
 <#
 .SYNOPSIS
-    Helper function to convert a PSCustomObject to a Hashtable.
-    Since ConvertFrom-Json has no -AsHashtable parameter in PowerShell 5.1,
+    Helper function to convert a PSCustomObject to a Hashtable
+    since ConvertFrom-Json has no -AsHashtable parameter in PowerShell 5.1.
 #>
+    [OutputType([hashtable])]
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory)]
-        [PSCustomObject]$InputObject
+        [Parameter(Mandatory, ValueFromPipeline)]
+        [PSCustomObject] $InputObject
     )
 
     $Output = @{}
@@ -196,7 +214,6 @@ function Get-StatRecordHistory {
     param()
 
     $Output = @{}
-
     if (Test-Path $TEMP_FILE_PATH) {
         $Raw        = Get-Content $TEMP_FILE_PATH -Raw
         $JsonObject = ConvertFrom-Json $Raw
@@ -212,16 +229,17 @@ function Measure-Average {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory, ValueFromPipeline)]
-        [object[]]$InputObjects,
+        [object[]] $InputObjects,
+
         [Parameter(Mandatory = $false)]
-        [string]$Property
+        [ValidateNotNullOrEmpty()]
+        [string] $Property
     )
 
     $ParamSplat = @{ Average = $true }
     if ($Property) { $ParamSplat['Property'] = $Property }
 
     return $InputObjects | Measure-Object @ParamSplat | Select-Object -ExpandProperty Average
-    
 }
 
 function Get-HistoricalAverage {
@@ -229,9 +247,12 @@ function Get-HistoricalAverage {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
-        [System.Collections.ArrayList]$StatRecordHistory,
+        [ValidateNotNullOrEmpty()]
+        [System.Collections.ArrayList] $StatRecordHistory,
+
         [Parameter(Mandatory)]
-        [string]$LogName
+        [ValidateNotNullOrEmpty()]
+        [string] $LogName
     )
 
     # calculate the running averages of all the records
@@ -270,7 +291,8 @@ function Get-CurrentStats {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
-        [string[]]$LogName
+        [ValidateNotNullOrEmpty()]
+        [string[]] $LogName
     )
 
     $Output = @{}
@@ -281,6 +303,7 @@ function Get-CurrentStats {
 }
 
 function Remove-History {
+    [OutputType([void])]
     [CmdletBinding()]
     param()
 
@@ -289,12 +312,15 @@ function Remove-History {
     }
 }
 function Write-ConsoleOutput {
+    [OutputType([void])]
     [CmdletBinding()]
     param (
         [Parameter(Mandatory, ValueFromPipeline)]
-        [hashtable]$HistoryAverages,
+        [hashtable] $HistoryAverages,
+
         [Parameter(Mandatory)]
-        [string[]]$LogName
+        [ValidateNotNullOrEmpty()]
+        [string[]] $LogName
     )
 
     $EmojiMap = @{
@@ -307,7 +333,7 @@ function Write-ConsoleOutput {
 
     $StringBuilder = [System.Text.StringBuilder]::new()
     [void] $StringBuilder.AppendLine("=== Average Log Volume on $ENV:COMPUTERNAME ===")
-    [void] $StringBuilder.AppendLine('')
+    [void] $StringBuilder.AppendLine()
 
     foreach ($LogRecord in $HistoryAverages.GetEnumerator()) {
         if ($LogRecord.Key -in $LogName) {
@@ -331,7 +357,7 @@ function Write-ConsoleOutput {
             [void] $StringBuilder.AppendLine("MB per Day:     $($LogRecord.Value.AverageMBPerDay)")
             [void] $StringBuilder.AppendLine("MB per Week:    $($LogRecord.Value.AverageMBPerWeek)")
             [void] $StringBuilder.AppendLine("MB per Month:   $($LogRecord.Value.AverageMBPerMonth)")
-            [void] $StringBuilder.AppendLine([System.Environment]::NewLine)
+            [void] $StringBuilder.AppendLine()
         }
     }
 
@@ -340,17 +366,19 @@ function Write-ConsoleOutput {
 }
 
 function Test-IsValidLogName {
+    [OutputType([bool])]
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
-        [string]$LogName
+        [ValidateNotNullOrEmpty()]
+        [string] $LogName
     )
 
     try {
         Get-WinEvent -ListLog $LogName -ErrorAction Stop
         return $true
-    }
-    catch {
+    } catch {
+        Write-Warning "Invalid or inaccessible log name: '$LogName'. This log will be skipped."
         return $false
     }
 }
@@ -362,7 +390,7 @@ function Test-IsValidLogName {
 $ValidLogNames = [System.Collections.ArrayList]::new()
 foreach ($logNameToValidate in $LogName) { 
     if (Test-IsValidLogName -LogName $logNameToValidate) { [void]$ValidLogNames.Add($logNameToValidate) }
-    else {Write-Warning "Invalid or inaccessible log name: '$logNameToValidate'. This log will be skipped." }
+    else { Write-Warning "Invalid or inaccessible log name: '$logNameToValidate'. This log will be skipped." }
 }
 
 if ($ValidLogNames.Count -eq 0) {
@@ -379,8 +407,7 @@ if ($KeepHistory) {
     foreach ($LogStat in $LogStatsHistory.GetEnumerator()) {
         if ($CurrentStats.ContainsKey($LogStat.Key)) {
             $CurrentStats["$($LogStat.Key)"].AddRange($LogStat.Value)
-        }
-        else {
+        } else {
             $CurrentStats["$($LogStat.Key)"] = $LogStat.Value
         }
     }
@@ -391,24 +418,16 @@ $StatsOutput = [PSCustomObject]@{
     Averages = @{}
 }
 
-# Calculate averages for the valid log names processed in this run.
 foreach ($Name in $ValidLogNames) { 
     if ($CurrentStats.ContainsKey($Name) -and $CurrentStats[$Name].Count -gt 0) {
         $StatsOutput.Averages[$Name] = Get-HistoricalAverage -StatRecordHistory $CurrentStats[$Name] -LogName $Name
-    } else {
-        Write-Warning "No data available in CurrentStats for log '$Name' to calculate averages. This might be due to earlier retrieval issues."
-    }
+    } 
+    else { Write-Warning "No data available in CurrentStats for log '$Name' to calculate averages." }
 }
 
-if ($KeepHistory) {
-    $StatsOutput | ConvertTo-Json -Depth 10 | Set-Content -Path $TEMP_FILE_PATH -Force
-}
+if ($KeepHistory) { $StatsOutput | ConvertTo-Json -Depth 10 | Set-Content -Path $TEMP_FILE_PATH -Force }
 
-if ($WriteAveragesToOutput) {
-    Write-Output ($StatsOutput.Averages | ConvertTo-Json -Depth 10)
-}
-else {
-    $StatsOutput.Averages | Write-ConsoleOutput -LogName $ValidLogNames
-}
+if ($WriteAveragesToOutput) { Write-Output ($StatsOutput.Averages | ConvertTo-Json -Depth 10) }
+else { $StatsOutput.Averages | Write-ConsoleOutput -LogName $ValidLogNames }
 
 #endregion
