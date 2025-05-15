@@ -323,12 +323,25 @@ function Write-ConsoleOutput {
         [string[]] $LogName
     )
 
+    # emojis for some common log names to make the output a bit prettier 
     $EmojiMap = @{
         'Application'     = '🗂'
         'Security'        = '🔐'
         'System'          = '💻'
         'Setup'           = '📦'
         'ForwardedEvents' = '📤'
+        'Microsoft-Windows-Windows Defender/Operational' = '🛡️'
+        'Microsoft-Windows-SENSE/Operational' = '🛡️'
+        'Microsoft-Windows-SenseIR/Operational' = '🛡️'
+        'Microsoft-Windows-PowerShell/Operational' = '💻'
+        'Microsoft-Windows-GroupPolicy/Operational' = '🛠️'
+        'Microsoft-Windows-AppLocker/EXE and DLL' = '🔒'
+        'Microsoft-Windows-AppLocker/MSI and Script' = '🔒'
+        'Microsoft-Windows-AppLocker/Packaged App-Deployment' = '🔒'
+        'Microsoft-Windows-AppLocker/Packaged App-Execution' = '🔒'
+        'Microsoft-Windows-LAPS/Operational' = '🔑'
+        'Microsoft-Windows-Windows Firewall With Advanced Security/Firewall' = '🔥'
+        'PowershellCore/Operational' = '💻'
     }
 
     $StringBuilder = [System.Text.StringBuilder]::new()
