@@ -1,0 +1,131 @@
+name: Release
+
+# Tag a commit on the default branch as vX.Y.Z (matching the version Tools/prepare_release.ps1
+# stamped into build.psd1) and push the tag to publish. Tags on any other branch are rejected
+# by the guard job below.
+# Requires a repository secret PSGALLERY_API_KEY (a PowerShell Gallery API key).
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:   # build + test only (no publish) for a dry run
+
+permissions:
+  contents: write      # needed to create the GitHub release
+
+jobs:
+  # Tag push events carry no branch context and 'branches:' filters do not apply to
+  # them, so enforce it here: the tagged commit must be an ancestor of the default branch.
+  # Skipped for workflow_dispatch dry runs, which may come from any branch.
+  guard:
+    runs-on: ubuntu-latest
+    env:
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - uses: actions/checkout@v7
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          fetch-depth: 0
+
+      - name: Ensure the tagged commit is on the default branch
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          git fetch origin "$DEFAULT_BRANCH" --quiet
+          if git merge-base --is-ancestor "$GITHUB_SHA" "origin/$DEFAULT_BRANCH"; then
+            echo "Commit $GITHUB_SHA is on $DEFAULT_BRANCH; release allowed."
+          else
+            echo "::error::Tag $GITHUB_REF_NAME points to a commit that is not on $DEFAULT_BRANCH. Releases are tagged on $DEFAULT_BRANCH only."
+            exit 1
+          fi
+
+      # This repository is a template until './tasks.ps1 prepare' has run. Publishing the
+      # unrenamed template to the Gallery would be a mistake, so refuse it outright.
+      - name: Refuse to release an unprepared template
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $name = (Import-PowerShellDataFile ./module.psd1).ModuleName
+          if ($name -eq 'ModuleTemplate') {
+            throw "module.psd1 still names the module 'ModuleTemplate'. Run './tasks.ps1 prepare' before releasing."
+          }
+          Write-Host "Module name: $name"
+
+  # Run the full CI matrix (lint + build + test on WinPS 5.1 / pwsh across OSes) next.
+  # The release job below only runs if both succeed.
+  ci:
+    needs: guard
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: [guard, ci]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Same cache as the CI matrix (see ci.yml): skips Install-Module on a hit.
+      - name: Cache PowerShell modules
+        uses: actions/cache@v6
+        with:
+          path: ~/.local/share/powershell/Modules
+          key: psmodules-ubuntu-latest-pwsh-${{ hashFiles('Tools/install_dev_requirements.ps1', 'module.psd1') }}
+
+      - name: Install dev requirements
+        shell: pwsh
+        run: ./tasks.ps1 -Task install_dev_requirements
+
+      - name: Build
+        shell: pwsh
+        run: ./tasks.ps1 -Task build
+
+      # Module name and Dist path both come from build.psd1 via Tools/module_info.ps1, so
+      # nothing here has to be edited after './tasks.ps1 prepare'.
+      - name: Resolve module path and version
+        id: mod
+        shell: pwsh
+        run: |
+          . ./Tools/module_info.ps1
+          $manifestPath = Get-BuiltManifestPath
+          $version = (Import-PowerShellDataFile $manifestPath).ModuleVersion
+          # On a tag push, the tag (vX.Y.Z) must match the manifest version.
+          if ($env:GITHUB_REF -like 'refs/tags/*') {
+            $tag = $env:GITHUB_REF_NAME -replace '^v', ''
+            if ($tag -ne $version) {
+              throw "Tag '$($env:GITHUB_REF_NAME)' does not match module version '$version'."
+            }
+          }
+          $name = (Get-ModuleInfo).ModuleName
+          "name=$name"                                        | Out-File $env:GITHUB_OUTPUT -Append
+          "dir=$((Split-Path -Parent $manifestPath))"          | Out-File $env:GITHUB_OUTPUT -Append
+          "version=$version"                                   | Out-File $env:GITHUB_OUTPUT -Append
+
+      - name: Package module
+        shell: pwsh
+        run: Compress-Archive -Path '${{ steps.mod.outputs.dir }}/*' -DestinationPath "${{ steps.mod.outputs.name }}-${{ steps.mod.outputs.version }}.zip" -Force
+
+      # The GitHub release body is the version's own section from CHANGELOG.md
+      # (prepare_release guarantees it exists and has content). Extraction shares
+      # Tools/get_changelog_section.ps1 with prepare_release so the format cannot drift.
+      - name: Extract release notes from CHANGELOG.md
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $version = '${{ steps.mod.outputs.version }}'
+          $notes = ([string](./Tools/get_changelog_section.ps1 -Heading $version)).Trim()
+          if (-not $notes) { throw "CHANGELOG.md has no content under '## [$version]' to use as release notes." }
+          Set-Content -Path release-notes.md -Value $notes
+          Write-Host "Release notes extracted from CHANGELOG.md ($($notes.Length) chars)."
+
+      - name: Publish to PowerShell Gallery
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          NUGET_KEY: ${{ secrets.PSGALLERY_API_KEY }}
+        run: |
+          if (-not $env:NUGET_KEY) { throw "Secret PSGALLERY_API_KEY is not set." }
+          Publish-Module -Path '${{ steps.mod.outputs.dir }}' -NuGetApiKey $env:NUGET_KEY -Verbose
+
+      - name: Create GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: gh release create "$env:GITHUB_REF_NAME" "${{ steps.mod.outputs.name }}-${{ steps.mod.outputs.version }}.zip" --title "$env:GITHUB_REF_NAME" --notes-file release-notes.md

@@ -1,0 +1,19 @@
+# Build output
+Dist/
+
+# Code coverage
+coverage.xml
+
+# PowerShell / editor cruft
+*.user
+.vs/
+.vscode/
+.idea/
+.ds_store
+.DS_Store
+
+# AI agent scratch
+.claude/
+
+# Local secrets / environment
+.env

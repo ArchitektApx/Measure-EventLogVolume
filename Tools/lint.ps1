@@ -1,0 +1,70 @@
+# Static analysis of Source/: general style and correctness, then cross-version/platform
+# compatibility. Any finding fails the run.
+#
+# The compatibility targets come from Tools/PSScriptAnalyzer.psd1, which Tools/prepare.ps1
+# generated from the chosen platform preset. Edit that file to retarget.
+#
+# Usage (from the repo root):
+#   ./tasks.ps1 lint
+#   pwsh -File Tools/lint.ps1
+
+# Fail loudly: without this, a broken import leaves Invoke-ScriptAnalyzer unresolved and
+# the script would happily print "No errors." over empty results.
+$ErrorActionPreference = 'Stop'
+
+. $(Join-Path $PSScriptRoot 'module_info.ps1')
+$info = Get-ModuleInfo
+$settings = Join-Path $PSScriptRoot 'PSScriptAnalyzer.psd1'
+
+if (-not (Get-Module -ListAvailable PSScriptAnalyzer)) {
+  Write-Host "Installing PSScriptAnalyzer..."
+  Install-Module PSScriptAnalyzer -Force -Scope CurrentUser -SkipPublisherCheck -ErrorAction Stop
+}
+# Gate on the COMMAND being callable, not on the module being listed: a session can have
+# PSScriptAnalyzer in Get-Module yet not expose Invoke-ScriptAnalyzer (a half-finished
+# import, or an editor that loaded it into another state), and a module-presence check
+# would then skip the repairing import and fail at the first Invoke-ScriptAnalyzer call.
+# No -Force: on an already-working module it would throw 'Assembly with same name is
+# already loaded'; when the command is missing, a plain Import-Module brings it back.
+if (-not (Get-Command Invoke-ScriptAnalyzer -ErrorAction SilentlyContinue)) {
+  Import-Module PSScriptAnalyzer
+}
+
+# Warn when the loaded PSScriptAnalyzer is older than the newest installed version; the
+# in-session assembly cannot be swapped out, so its rules may differ from a clean run.
+$loadedPssa = (Get-Command Invoke-ScriptAnalyzer -ErrorAction SilentlyContinue).Module
+if ($loadedPssa) {
+  $newestPssa = Get-Module -ListAvailable PSScriptAnalyzer |
+    Sort-Object Version -Descending | Select-Object -First 1
+  if ($newestPssa -and $loadedPssa.Version -lt $newestPssa.Version) {
+    Write-Warning ("lint: session has PSScriptAnalyzer $($loadedPssa.Version) loaded but $($newestPssa.Version) is installed. " +
+      "Results may differ from a clean run; start a fresh PowerShell session to lint with the newer version.")
+  }
+}
+
+Write-Host "--------------------------------"
+Write-Host "Analyzing (style / correctness)..."
+Write-Host "--------------------------------"
+# Warnings fail too, like the compatibility check below.
+$findings = Invoke-ScriptAnalyzer -Path $info.SourceRoot -Recurse -Severity Warning, Error
+if ($findings) {
+  $findings | Format-Table -AutoSize ScriptName, Line, Severity, RuleName | Out-String | Write-Host
+  throw ("PSScriptAnalyzer reported $($findings.Count) finding(s). Fix them, or add a targeted " +
+    "[Diagnostics.CodeAnalysis.SuppressMessageAttribute] with a Justification.")
+}
+Write-Host "No errors or warnings."
+
+# Report the actual targets rather than a hardcoded pair, so the output still tells the
+# truth after the ruleset is retargeted.
+$targets = (Import-PowerShellDataFile -LiteralPath $settings).Rules.PSUseCompatibleSyntax.TargetVersions
+$targetLabel = (@($targets) -join ' / ')
+
+Write-Host "--------------------------------"
+Write-Host "Checking compatibility (PowerShell $targetLabel)..."
+Write-Host "--------------------------------"
+$compat = Invoke-ScriptAnalyzer -Path $info.SourceRoot -Recurse -Settings $settings
+if ($compat) {
+  $compat | Format-Table -AutoSize ScriptName, Line, RuleName, Message | Out-String | Write-Host
+  throw "PSScriptAnalyzer reported $($compat.Count) compatibility finding(s)."
+}
+Write-Host "Compatibility: clean (PowerShell $targetLabel)."
